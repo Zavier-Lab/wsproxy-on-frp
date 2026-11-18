@@ -20,6 +20,8 @@ import (
 	"github.com/fatedier/frp/pkg/util/util"
 )
 
+const defaultWebsocketPath = "/~!frp"
+
 type AuthScope string
 
 const (

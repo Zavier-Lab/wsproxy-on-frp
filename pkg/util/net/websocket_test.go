@@ -30,6 +30,8 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+const websocketTestPath = "/~!frp"
+
 type closeStubListener struct {
 	closed chan struct{}
 	once   sync.Once
@@ -52,7 +54,7 @@ func (l *closeStubListener) Addr() net.Addr {
 
 func TestWebsocketListenerAcceptUnblocksOnClose(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		wl := NewWebsocketListener(&closeStubListener{closed: make(chan struct{})})
+		wl := NewWebsocketListener(&closeStubListener{closed: make(chan struct{})}, websocketTestPath)
 		t.Cleanup(func() { wl.Close() })
 		errCh := make(chan error, 3)
 		for range 3 {
@@ -90,7 +92,7 @@ func TestWebsocketListenerAcceptUnblocksOnClose(t *testing.T) {
 func TestWebsocketListenerCloseError(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		closeErr := errors.New("listener close failed")
-		wl := NewWebsocketListener(&closeStubListener{closed: make(chan struct{}), err: closeErr})
+		wl := NewWebsocketListener(&closeStubListener{closed: make(chan struct{}), err: closeErr}, websocketTestPath)
 		synctest.Wait() // Let Serve register its listener before Close.
 		require.ErrorIs(t, wl.Close(), closeErr)
 		require.NoError(t, wl.Close())
@@ -107,9 +109,9 @@ func (h *websocketPipeHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return h.conn, h.rw, nil
 }
 
-func newWebsocketPipe(t *testing.T) (*WebsocketListener, *websocket.Conn, net.Conn, <-chan struct{}) {
+func newWebsocketPipe(t *testing.T, wsURL string) (*WebsocketListener, *websocket.Conn, net.Conn, <-chan struct{}) {
 	t.Helper()
-	wl := NewWebsocketListener(&closeStubListener{closed: make(chan struct{})})
+	wl := NewWebsocketListener(&closeStubListener{closed: make(chan struct{})}, wsURL)
 	serverConn, clientConn := net.Pipe()
 	t.Cleanup(func() {
 		wl.Close()
@@ -129,16 +131,14 @@ func newWebsocketPipe(t *testing.T) (*WebsocketListener, *websocket.Conn, net.Co
 		}
 		wl.server.Handler.ServeHTTP(&websocketPipeHijacker{httptest.NewRecorder(), serverConn, rw}, req)
 	}()
-	cfg, err := websocket.NewConfig("ws://localhost"+FrpWebsocketPath, "http://localhost")
+	_, conn, err := DialHookWebsocket("websocket", "localhost", wsURL)(t.Context(), clientConn, "localhost")
 	require.NoError(t, err)
-	peer, err := websocket.NewClient(cfg, clientConn)
-	require.NoError(t, err)
-	return wl, peer, serverConn, handlerDone
+	return wl, conn.(*websocket.Conn), serverConn, handlerDone
 }
 
 func TestWebsocketListenerUnacceptedConnectionClose(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		wl, peer, raw, handlerDone := newWebsocketPipe(t)
+		wl, peer, raw, handlerDone := newWebsocketPipe(t, websocketTestPath)
 		peerErr := make(chan error, 1)
 		go func() {
 			_, err := peer.Read(make([]byte, 1))
@@ -155,43 +155,62 @@ func TestWebsocketListenerUnacceptedConnectionClose(t *testing.T) {
 }
 
 func TestWebsocketListenerAcceptedConnectionOwnership(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		wl, peer, raw, handlerDone := newWebsocketPipe(t)
-		owner, err := wl.Accept()
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			raw.Close()
-			owner.Close()
-		})
-		require.NoError(t, wl.Close())
+	for _, wsURL := range []string{websocketTestPath, "/relay/egress", "/", "/relay/egress/", "/relay/hello%20world"} {
+		t.Run(wsURL, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				wl, peer, raw, handlerDone := newWebsocketPipe(t, wsURL)
+				owner, err := wl.Accept()
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					raw.Close()
+					owner.Close()
+				})
+				require.NoError(t, wl.Close())
 
-		payload := []byte{0, 255, 128, 42}
-		reply := []byte("reply")
-		gotReply := make([]byte, len(reply))
-		peerErr := make(chan error, 2)
-		go func() {
-			if _, err := peer.Write(payload); err != nil {
-				peerErr <- err
-				return
+				payload := []byte{0, 255, 128, 42}
+				reply := []byte("reply")
+				gotReply := make([]byte, len(reply))
+				peerErr := make(chan error, 2)
+				go func() {
+					if _, err := peer.Write(payload); err != nil {
+						peerErr <- err
+						return
+					}
+					_, err := io.ReadFull(peer, gotReply)
+					peerErr <- err
+					_, err = peer.Read(make([]byte, 1))
+					peerErr <- err
+				}()
+				got := make([]byte, len(payload))
+				_, err = io.ReadFull(owner, got)
+				require.NoError(t, err)
+				require.Equal(t, payload, got)
+				_, err = owner.Write(reply)
+				require.NoError(t, err)
+				require.NoError(t, <-peerErr)
+				require.Equal(t, reply, gotReply)
+				require.NoError(t, owner.Close())
+				require.NoError(t, owner.Close())
+				require.ErrorIs(t, <-peerErr, io.EOF)
+				<-handlerDone
+				_, err = raw.Read(make([]byte, 1))
+				require.ErrorIs(t, err, io.ErrClosedPipe)
+			})
+		})
+	}
+}
+
+func TestWebsocketListenerRejectsMismatchedPaths(t *testing.T) {
+	for _, wsURL := range []string{"/relay/egress", "/relay/egress/", "/"} {
+		t.Run(wsURL, func(t *testing.T) {
+			wl := NewWebsocketListener(&closeStubListener{closed: make(chan struct{})}, wsURL)
+			t.Cleanup(func() { wl.Close() })
+			for _, requestPath := range []string{websocketTestPath, wsURL + "extra", wsURL + "?x=1"} {
+				recorder := httptest.NewRecorder()
+				request := httptest.NewRequest(http.MethodGet, requestPath, nil)
+				wl.server.Handler.ServeHTTP(recorder, request)
+				require.Equal(t, http.StatusNotFound, recorder.Code, "request path %q", requestPath)
 			}
-			_, err := io.ReadFull(peer, gotReply)
-			peerErr <- err
-			_, err = peer.Read(make([]byte, 1))
-			peerErr <- err
-		}()
-		got := make([]byte, len(payload))
-		_, err = io.ReadFull(owner, got)
-		require.NoError(t, err)
-		require.Equal(t, payload, got)
-		_, err = owner.Write(reply)
-		require.NoError(t, err)
-		require.NoError(t, <-peerErr)
-		require.Equal(t, reply, gotReply)
-		require.NoError(t, owner.Close())
-		require.NoError(t, owner.Close())
-		require.ErrorIs(t, <-peerErr, io.EOF)
-		<-handlerDone
-		_, err = raw.Read(make([]byte, 1))
-		require.ErrorIs(t, err, io.ErrClosedPipe)
-	})
+		})
+	}
 }

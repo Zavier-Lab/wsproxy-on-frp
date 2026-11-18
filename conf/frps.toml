@@ -1,1 +1,4 @@
 bindPort = 7000
+
+# WebSocket handshake path; must match frpc transport.ws_url.
+transport.ws_url = "/~!frp"

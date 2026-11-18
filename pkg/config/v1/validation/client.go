@@ -147,6 +147,8 @@ func validateTransportConfig(c *v1.ClientTransportConfig) (Warning, error) {
 		errs     error
 	)
 
+	errs = AppendError(errs, validateWebsocketPath(c.WSURL))
+
 	if c.HeartbeatTimeout > 0 && c.HeartbeatInterval > 0 {
 		if c.HeartbeatTimeout < c.HeartbeatInterval {
 			errs = AppendError(errs, fmt.Errorf("invalid transport.heartbeatTimeout, heartbeat timeout should not less than heartbeat interval"))

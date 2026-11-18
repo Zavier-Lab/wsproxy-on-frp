@@ -47,6 +47,7 @@ func (v *ConfigValidator) ValidateServerConfig(c *v1.ServerConfig) (Warning, err
 	if err := validateMetricsServerConfig(&c.MetricsServer, &c.WebServer); err != nil {
 		errs = AppendError(errs, err)
 	}
+	errs = AppendError(errs, validateWebsocketPath(c.Transport.WSURL))
 	if c.Transport.TLS.UseSystemCa {
 		errs = AppendError(errs, fmt.Errorf("transport.tls.useSystemCa is only supported in frpc transport.tls"))
 	}

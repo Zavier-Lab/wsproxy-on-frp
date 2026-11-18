@@ -12,10 +12,6 @@ import (
 
 var ErrWebsocketListenerClosed = errors.New("websocket listener closed")
 
-const (
-	FrpWebsocketPath = "/~!frp"
-)
-
 type WebsocketListener struct {
 	ln       net.Listener
 	acceptCh chan net.Conn
@@ -28,15 +24,14 @@ type WebsocketListener struct {
 
 // NewWebsocketListener to handle websocket connections
 // ln: tcp listener for websocket connections
-func NewWebsocketListener(ln net.Listener) (wl *WebsocketListener) {
+func NewWebsocketListener(ln net.Listener, wsURL string) (wl *WebsocketListener) {
 	wl = &WebsocketListener{
 		ln:       ln,
 		acceptCh: make(chan net.Conn),
 		done:     make(chan struct{}),
 	}
 
-	muxer := http.NewServeMux()
-	muxer.Handle(FrpWebsocketPath, websocket.Handler(func(c *websocket.Conn) {
+	handler := websocket.Handler(func(c *websocket.Conn) {
 		// The tunnel payload is a raw byte stream (yamux), not UTF-8 text.
 		// Send it as binary frames; otherwise RFC 6455-compliant intermediaries
 		// (e.g. API gateways/reverse proxies) UTF-8-validate the default text
@@ -55,11 +50,17 @@ func NewWebsocketListener(ln net.Listener) (wl *WebsocketListener) {
 			// the connection is owned by the caller of Accept.
 		}
 		<-notifyCh
-	}))
+	})
 
 	wl.server = &http.Server{
-		Addr:              ln.Addr().String(),
-		Handler:           muxer,
+		Addr: ln.Addr().String(),
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.RequestURI != wsURL {
+				http.NotFound(w, r)
+				return
+			}
+			handler.ServeHTTP(w, r)
+		}),
 		ReadHeaderTimeout: 60 * time.Second,
 	}
 

@@ -95,6 +95,28 @@ v2 的构想是基于我多年在云原生领域，特别是在 K8s 和 ServiceM
 
 完整文档已经迁移至 [https://gofrp.org](https://gofrp.org)。
 
+### 自定义 WebSocket 路径
+
+本分支在 frps 和 frpc 中均支持 `transport.ws_url`，配置的是 WebSocket 握手路径，而不是完整 URL：
+
+```toml
+# frps.toml
+bindPort = 7000
+transport.ws_url = "/relay/egress"
+```
+
+```toml
+# frpc.toml
+serverAddr = "127.0.0.1"
+serverPort = 7000
+transport.protocol = "websocket"
+transport.ws_url = "/relay/egress"
+```
+
+该配置适用于 `websocket` 和 `wss`。两端的路径必须完全一致，尾部斜线也参与匹配。省略或设为空字符串时，保持默认路径 `/~!frp`；配置自定义路径后，服务端不再接受默认路径，也不接受附加后缀或查询串的路径。值必须是以 `/` 开头的绝对 URL 路径，空格等字符需要百分号编码，不能包含协议、域名、查询串或片段。
+
+通过学校等 HTTPS 网关使用 `wss` 时，由网关终止外层 TLS，并将 WebSocket Upgrade 和自定义路径原样转发到 frps，不要再改写回 `/~!frp`。终止 TLS 的网关仍能看到路径；自定义路径不能代替认证或加密。原有 TLS 和身份认证配置保持不变。
+
 ## 为 frp 做贡献
 
 frp 是一个免费且开源的项目，我们欢迎任何人为其开发和进步贡献力量。

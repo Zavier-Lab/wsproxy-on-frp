@@ -106,6 +106,9 @@ type ClientTransportConfig struct {
 	// Valid values are "tcp", "kcp", "quic", "websocket" and "wss". By default, this value
 	// is "tcp".
 	Protocol string `json:"protocol,omitempty"`
+	// WSURL is the WebSocket handshake path for websocket and wss transports.
+	// It must match frps transport.ws_url. The default is "/~!frp".
+	WSURL string `json:"ws_url,omitempty"`
 	// WireProtocol specifies the frpc/frps internal wire protocol version.
 	// Valid values are "v1" and "v2". By default, this value is "v1".
 	WireProtocol string `json:"wireProtocol,omitempty"`
@@ -148,6 +151,7 @@ type ClientTransportConfig struct {
 
 func (c *ClientTransportConfig) Complete() {
 	c.Protocol = util.EmptyOr(c.Protocol, "tcp")
+	c.WSURL = util.EmptyOr(c.WSURL, defaultWebsocketPath)
 	c.WireProtocol = util.EmptyOr(c.WireProtocol, "v1")
 	c.DialServerTimeout = util.EmptyOr(c.DialServerTimeout, 10)
 	c.DialServerKeepAlive = util.EmptyOr(c.DialServerKeepAlive, 7200)

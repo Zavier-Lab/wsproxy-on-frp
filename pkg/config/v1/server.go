@@ -157,6 +157,9 @@ type AuthOIDCServerConfig struct {
 }
 
 type ServerTransportConfig struct {
+	// WSURL is the accepted WebSocket handshake path.
+	// It must match frpc transport.ws_url. The default is "/~!frp".
+	WSURL string `json:"ws_url,omitempty"`
 	// TCPMux toggles TCP stream multiplexing. This allows multiple requests
 	// from a client to share a single TCP connection. By default, this value
 	// is true.
@@ -182,6 +185,7 @@ type ServerTransportConfig struct {
 }
 
 func (c *ServerTransportConfig) Complete() {
+	c.WSURL = util.EmptyOr(c.WSURL, defaultWebsocketPath)
 	c.TCPMux = util.EmptyOr(c.TCPMux, new(true))
 	c.TCPMuxKeepaliveInterval = util.EmptyOr(c.TCPMuxKeepaliveInterval, 30)
 	c.TCPKeepAlive = util.EmptyOr(c.TCPKeepAlive, 7200)

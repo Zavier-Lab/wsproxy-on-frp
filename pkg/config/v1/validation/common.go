@@ -16,10 +16,24 @@ package validation
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
+	"strings"
 
 	v1 "github.com/fatedier/frp/pkg/config/v1"
 )
+
+func validateWebsocketPath(wsURL string) error {
+	if wsURL == "" {
+		return nil
+	}
+	u, err := url.ParseRequestURI(wsURL)
+	if err != nil || !strings.HasPrefix(wsURL, "/") || strings.HasPrefix(wsURL, "//") ||
+		u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.EscapedPath() != wsURL {
+		return fmt.Errorf("invalid transport.ws_url: must be an absolute escaped URL path without a query or fragment")
+	}
+	return nil
+}
 
 func validateWebServerConfig(c *v1.WebServerConfig) error {
 	if c.TLS != nil {

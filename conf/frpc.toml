@@ -1,6 +1,9 @@
 serverAddr = "127.0.0.1"
 serverPort = 7000
 
+# Used when transport.protocol is "websocket" or "wss"; must match frps.
+transport.ws_url = "/~!frp"
+
 [[proxies]]
 name = "test-tcp"
 type = "tcp"

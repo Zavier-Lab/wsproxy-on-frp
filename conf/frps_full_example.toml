@@ -17,6 +17,10 @@ kcpBindPort = 7000
 # Specify which address proxy will listen for, default value is same with bindAddr
 # proxyBindAddr = "127.0.0.1"
 
+# Accepted WebSocket handshake path, default is "/~!frp".
+# Must exactly match frpc transport.ws_url; no additional default path is accepted.
+transport.ws_url = "/~!frp"
+
 # quic protocol options
 # transport.quic.keepalivePeriod = 10
 # transport.quic.maxIdleTimeout = 30

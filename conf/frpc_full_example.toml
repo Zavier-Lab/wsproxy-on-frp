@@ -117,6 +117,11 @@ transport.poolCount = 5
 # supports tcp, kcp, quic, websocket and wss now, default is tcp
 transport.protocol = "tcp"
 
+# WebSocket handshake path for websocket and wss transports, default is "/~!frp".
+# Must exactly match frps transport.ws_url, including a trailing slash if present.
+# Use a path such as "/relay/egress", not a full URL, query string, or fragment.
+transport.ws_url = "/~!frp"
+
 # FRP wire protocol used inside the selected transport.
 # supports v1 and v2, default is v1. v2 requires frps support and must be enabled explicitly.
 # transport.wireProtocol = "v1"

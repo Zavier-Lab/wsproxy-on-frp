@@ -68,6 +68,7 @@ frp also offers a P2P connect mode.
     * [About V2](#about-v2)
 * [Architecture](#architecture)
 * [Example Usage](#example-usage)
+    * [Custom WebSocket handshake path](#custom-websocket-handshake-path)
     * [Access your computer in a LAN network via SSH](#access-your-computer-in-a-lan-network-via-ssh)
     * [Multiple SSH services sharing the same port](#multiple-ssh-services-sharing-the-same-port)
     * [Accessing Internal Web Services with Custom Domains in LAN](#accessing-internal-web-services-with-custom-domains-in-lan)
@@ -165,6 +166,28 @@ Next, place the `frps` binary and server configuration file on Server A, which h
 Finally, place the `frpc` binary and client configuration file on Server B, which is located on a LAN that cannot be directly accessed from the public internet.
 
 Some antiviruses improperly mark frpc as malware and delete it. This is due to frp being a networking tool capable of creating reverse proxies. Antiviruses sometimes flag reverse proxies due to their ability to bypass firewall port restrictions. If you are using antivirus, then you may need to whitelist/exclude frpc in your antivirus settings to avoid accidental quarantine/deletion. See [issue 3637](https://github.com/fatedier/frp/issues/3637) for more details.
+
+### Custom WebSocket handshake path
+
+This fork supports `transport.ws_url` in both frps and frpc. The value is the exact WebSocket handshake path, not a full URL. For example:
+
+```toml
+# frps.toml
+bindPort = 7000
+transport.ws_url = "/relay/egress"
+```
+
+```toml
+# frpc.toml
+serverAddr = "127.0.0.1"
+serverPort = 7000
+transport.protocol = "websocket"
+transport.ws_url = "/relay/egress"
+```
+
+The setting applies to both `websocket` and `wss` transports. Both ends must use the same path, including any trailing slash. When omitted or empty, the path remains `/~!frp`. Once a custom path is configured, frps does not also accept the default path or paths with extra suffixes or query strings. Use an absolute URL path starting with `/`, percent-encode characters such as spaces, and do not include a scheme, host, query, or fragment.
+
+For `wss`, the HTTPS gateway terminates outer TLS and must forward the WebSocket upgrade and the configured path unchanged to frps; do not rewrite the path back to `/~!frp`. The path is visible to the TLS-terminating gateway and is not a substitute for authentication or encryption. Existing TLS and authentication settings are unchanged.
 
 ### Access your computer in a LAN network via SSH
 
