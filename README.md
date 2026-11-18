@@ -1,3 +1,14 @@
+# frok说明
+本fork目前修改就是自定义了frpc与frps通信的websocket(包括wss)握手路径
+在frps和frpc配置文件里面添加了选项`transport.ws_url = "/path/to/your/customized/url"`，只有两边配置相同了才能使用。如果frps通过nginx反向代理的话nignix的location也要和transport.ws_url配置相同（注意后面有没有斜杠也要一致）
+
+## 为什么要做这个
+其实frp是可以拿来做一个正向代理的工具的😋
+
+## 怎么用
+
+
+
 # frp
 
 [![Build Status](https://circleci.com/gh/fatedier/frp.svg?style=shield)](https://circleci.com/gh/fatedier/frp)
