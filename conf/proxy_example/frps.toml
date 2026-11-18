@@ -1,0 +1,17 @@
+bindAddr = "127.0.0.1"
+bindPort = 7000
+
+# HTTP 代理入口仅允许 A 本机使用。
+proxyBindAddr = "127.0.0.1"
+
+auth.method = "token"
+auth.token = "same_as_frpc"
+
+transport.ws_url = "your_custom_url_same_as_frpc"
+
+# 学校已终止外层 TLS，转发过来的是 WebSocket。
+transport.tls.force = false
+
+#log.to = "./frps.log"
+#log.level = "info"
+#log.maxDays = 7

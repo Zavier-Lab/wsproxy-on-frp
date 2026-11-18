@@ -1,0 +1,20 @@
+# 学校对外提供的 HTTPS 域名，不带 https:// 和路径。
+serverAddr = "your_addr"
+serverPort = your_port
+
+auth.method = "token"
+auth.token = "your_strong_token"
+
+transport.protocol = "wss"
+transport.ws_url = "/change_it"
+
+[[proxies]]
+name = "proxy"
+type = "tcp"
+remotePort = 18080
+
+
+[proxies.plugin]
+type = "http_proxy"
+httpUser = "your_username"
+httpPassword = "your_password"
