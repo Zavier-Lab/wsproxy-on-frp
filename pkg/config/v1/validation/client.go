@@ -175,6 +175,20 @@ func validateTransportConfig(c *v1.ClientTransportConfig) (Warning, error) {
 	if !slices.Contains(SupportedTransportProtocols, c.Protocol) {
 		errs = AppendError(errs, fmt.Errorf("invalid transport.protocol, optional values are %v", SupportedTransportProtocols))
 	}
+	if c.TLS.InnerEnable {
+		if c.Protocol != "wss" {
+			errs = AppendError(errs, fmt.Errorf("transport.tls.innerEnable requires transport.protocol to be wss"))
+		}
+	} else {
+		checkInnerTLSConfig := func(name string, value string) Warning {
+			if value != "" {
+				return fmt.Errorf("%s is invalid when transport.tls.innerEnable is false", name)
+			}
+			return nil
+		}
+		warnings = AppendError(warnings, checkInnerTLSConfig("transport.tls.innerServerName", c.TLS.InnerServerName))
+		warnings = AppendError(warnings, checkInnerTLSConfig("transport.tls.innerTrustedCaFile", c.TLS.InnerTrustedCaFile))
+	}
 	if !slices.Contains(SupportedWireProtocols, c.WireProtocol) {
 		errs = AppendError(errs, fmt.Errorf("invalid transport.wireProtocol, optional values are %v", SupportedWireProtocols))
 	}

@@ -2,6 +2,44 @@
 本fork目前修改就是自定义了frpc与frps通信的websocket(包括wss)握手路径
 在frps和frpc配置文件里面添加了选项`transport.ws_url = "/path/to/your/customized/url"`，只有两边配置相同了才能使用。如果frps通过nginx反向代理的话nignix的location也要和transport.ws_url配置相同（注意后面有没有斜杠也要一致）
 
+## wss 内层 TLS
+当 frpc 用 `transport.protocol = "wss"` 连接、外层 TLS 由 nginx/CDN 终结时，它转发给 frps 的那段连接原本是明文 WebSocket，能看到 frp 的握手（version、hostname、run_id、token 等）和后续数据。现在可以开启内层 TLS：
+
+```toml
+# frpc
+transport.protocol = "wss"
+transport.tls.innerEnable = true
+
+# frps（可选，但建议）：拒绝没有内层 TLS 的客户端
+transport.tls.force = true
+```
+
+开启后 frpc 在 WebSocket 升级完成后、发送任何 frp 数据之前，再和 frps 做一次完整的 TLS 握手（frps 自动识别，无需新增配置）。这样外层 TLS 终结者及其后面那段网络上只能看到 TLS 记录，frp 握手与 payload 均被隐藏。
+
+### 内层 TLS 的证书与校验
+
+内层 TLS 是一个**独立的信任域**，与 wss 外层 TLS 无关：外层证书属于 CDN/nginx，内层证书属于 frps。所以内层校验不能复用 `transport.tls.serverName` / `transport.tls.trustedCaFile`（它们描述外层端点），而用单独的字段。
+
+frps 侧证书来源：
+
+- 配置了 `transport.tls.certFile` / `transport.tls.keyFile`：内层 TLS 使用这张固定证书（与 frps 直接终结 TLS 时是同一张）。
+- 未配置：每次 frps 启动时生成一张**随机自签证书**，重启就变，无法固定校验。
+
+frpc 侧的三种校验强度：
+
+| 配置 | 行为 | 安全性 |
+|---|---|---|
+| 默认（不配 `innerTrustedCaFile`） | 加密但不校验证书（`InsecureSkipVerify`） | 只防被动窃听；能主动改包的人可冒充 frps |
+| `innerTrustedCaFile = "inner_ca.crt"` | 用该 CA 校验 frps 内层证书，失败即断开 | 防中间人，需 frps 配置固定证书 |
+| 再加 `innerServerName = "frps.example.com"` | 同时校验证书中的主机名（SNI），默认取 `serverAddr` | 更严格；适用于 `serverAddr` 是 CDN 域名或 IP、与 frps 证书名字不一致的情况 |
+
+`innerServerName` 默认是 `serverAddr`。开启校验时，证书必须包含该名字（DNS SAN 或 IP SAN），否则握手失败——例如 `serverAddr` 是学校域名但 frps 证书签给 `frps.example.com` 时，必须显式写 `innerServerName`。
+
+**双向认证（mTLS）**：frps 配置 `transport.tls.trustedCaFile` 后，会对所有 TLS 握手（包括内层）要求并校验客户端证书。此时 frpc 必须同时配置 `transport.tls.certFile` 与 `transport.tls.keyFile`，内层 TLS 会把它们作为客户端证书出示，且必须由 frps 的 CA 签发。
+
+注意：内层 TLS 的 `innerTrustedCaFile` 与 `transport.tls.enable` 无关；即使 `transport.tls.enable = false`（wss 下该值本来就被忽略），内层校验仍按上述规则工作。
+
+
 ## 为什么要做这个
 其实frp是可以拿来做一个正向代理的工具的😋
 

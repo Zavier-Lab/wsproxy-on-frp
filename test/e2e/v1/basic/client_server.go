@@ -96,6 +96,33 @@ func defineClientServerTest(desc string, f *framework.Framework, configures *gen
 	})
 }
 
+// wssTestConfigures returns configures for the wss protocol. frps cannot accept
+// wss directly, so a second frpc with the https2http plugin terminates the
+// outer TLS and forwards the plain WebSocket stream to frps.
+func wssTestConfigures(wssPort int, serverExtra, clientExtra string) *generalTestConfigures {
+	return &generalTestConfigures{
+		server: serverExtra,
+		clientPrefix: fmt.Sprintf(`
+			serverAddr = "127.0.0.1"
+			serverPort = %d
+			loginFailExit = false
+			transport.protocol = "wss"
+			%s
+			log.level = "trace"
+		`, wssPort, clientExtra),
+		client2: fmt.Sprintf(`
+			[[proxies]]
+			name = "wss2ws"
+			type = "tcp"
+			remotePort = %d
+			[proxies.plugin]
+			type = "https2http"
+			localAddr = "127.0.0.1:{{ .%s }}"
+		`, wssPort, consts.PortServerName),
+		testDelay: 10 * time.Second,
+	}
+}
+
 var _ = ginkgo.Describe("[Feature: Client-Server]", func() {
 	f := framework.NewDefaultFramework()
 
@@ -115,29 +142,12 @@ var _ = ginkgo.Describe("[Feature: Client-Server]", func() {
 	// wss is special, it needs to be tested separately.
 	// frps only supports ws, so there should be a proxy to terminate TLS before frps.
 	ginkgo.Describe("Protocol wss", func() {
-		wssPort := f.AllocPort()
-		configures := &generalTestConfigures{
-			clientPrefix: fmt.Sprintf(`
-				serverAddr = "127.0.0.1"
-				serverPort = %d
-				loginFailExit = false
-				transport.protocol = "wss"
-				log.level = "trace"
-			`, wssPort),
-			// Due to the fact that frps cannot directly accept wss connections, we use the https2http plugin of another frpc to terminate TLS.
-			client2: fmt.Sprintf(`
-				[[proxies]]
-				name = "wss2ws"
-				type = "tcp"
-				remotePort = %d
-				[proxies.plugin]
-				type = "https2http"
-				localAddr = "127.0.0.1:{{ .%s }}"
-			`, wssPort, consts.PortServerName),
-			testDelay: 10 * time.Second,
-		}
-
-		defineClientServerTest("wss", f, configures)
+		defineClientServerTest("wss", f, wssTestConfigures(f.AllocPort(), "", ""))
+		// transport.tls.force makes frps reject the plaintext WebSocket stream
+		// that the TLS terminator forwards, so this test only passes when frpc
+		// established the inner TLS layer inside the tunnel.
+		defineClientServerTest("wss with inner TLS", f, wssTestConfigures(
+			f.AllocPort(), "transport.tls.force = true", "transport.tls.innerEnable = true"))
 	})
 
 	ginkgo.Describe("Authentication", func() {

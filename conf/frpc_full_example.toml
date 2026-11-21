@@ -161,6 +161,32 @@ transport.tls.enable = true
 # Since v0.50.0, the default value has been changed to true, and the first custom byte is disabled by default.
 # transport.tls.disableCustomTLSFirstByte = true
 
+# Add a second, independent TLS handshake inside the WebSocket tunnel.
+# Only used when transport.protocol = "wss". The outer TLS still protects the
+# connection to the wss endpoint; the inner layer protects everything after a
+# CDN or reverse proxy terminates that outer TLS, hiding the frp handshake and
+# payload from the network path between the terminator and frps.
+# The inner handshake always starts with a standard TLS ClientHello; it does
+# not use transport.tls.disableCustomTLSFirstByte.
+# frps automatically accepts the inner TLS; set transport.tls.force = true on
+# frps to reject clients that do not use it.
+# transport.tls.innerEnable = true
+
+# Certificate name verified for the inner TLS layer, independent of the outer
+# wss certificate. Defaults to serverAddr; when verification is enabled the
+# certificate must contain that name (DNS or IP SAN), so set this when
+# serverAddr is a CDN domain or IP and the frps certificate uses another name.
+# transport.tls.innerServerName = "frps.example.com"
+
+# CA used to verify frps's certificate for the inner TLS layer; enables
+# verification and fails the handshake on mismatch. This is a separate trust
+# domain from the outer wss certificate. When empty, verification is skipped.
+# frps must use a fixed transport.tls.certFile/keyFile for this to be useful
+# (its default certificate is random and regenerated on every restart).
+# transport.tls.innerTrustedCaFile = "inner_ca.crt"
+# transport.tls.certFile/keyFile are also presented as the inner TLS client
+# certificate; frps requires them when its transport.tls.trustedCaFile is set.
+
 # Heartbeat configure, it's not recommended to modify the default value.
 # The default value of heartbeatInterval is 10 and heartbeatTimeout is 90. Set negative value
 # to disable it.

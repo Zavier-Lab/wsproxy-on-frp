@@ -78,6 +78,37 @@ func TestClientSystemCARequiresTLS(t *testing.T) {
 	}
 }
 
+func TestInnerTLSRequiresWSS(t *testing.T) {
+	for _, protocol := range []string{"tcp", "kcp", "quic", "websocket", "wss"} {
+		t.Run(protocol, func(t *testing.T) {
+			cfg := &v1.ClientCommonConfig{}
+			cfg.Transport.Protocol = protocol
+			cfg.Transport.TLS.InnerEnable = true
+			require.NoError(t, cfg.Complete())
+			warnings, err := NewConfigValidator(nil).ValidateClientCommonConfig(cfg)
+			require.NoError(t, warnings)
+			if protocol == "wss" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "transport.tls.innerEnable requires transport.protocol to be wss")
+			}
+		})
+	}
+}
+
+func TestDisabledInnerTLSFieldWarnings(t *testing.T) {
+	cfg := &v1.ClientCommonConfig{}
+	cfg.Transport.Protocol = "wss"
+	cfg.Transport.TLS.InnerServerName = "frps.example.com"
+	cfg.Transport.TLS.InnerTrustedCaFile = "ca.pem"
+	require.NoError(t, cfg.Complete())
+	warnings, err := NewConfigValidator(nil).ValidateClientCommonConfig(cfg)
+	require.NoError(t, err)
+	for _, field := range []string{"innerServerName", "innerTrustedCaFile"} {
+		require.ErrorContains(t, warnings, "transport.tls."+field+" is invalid when transport.tls.innerEnable is false")
+	}
+}
+
 func TestDisabledTLSFileWarnings(t *testing.T) {
 	for _, protocol := range []string{"tcp", "kcp", "quic", "websocket", "wss"} {
 		t.Run(protocol, func(t *testing.T) {

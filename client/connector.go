@@ -207,6 +207,24 @@ func (c *defaultConnectorImpl) realConnect() (net.Conn, error) {
 		}
 	}
 
+	var innerTLSConfig *tls.Config
+	if c.cfg.Transport.Protocol == "wss" && c.cfg.Transport.TLS.InnerEnable {
+		sn := c.cfg.Transport.TLS.InnerServerName
+		if sn == "" {
+			sn = c.cfg.ServerAddr
+		}
+		innerTLSConfig, err = transport.NewClientTLSConfig(
+			c.cfg.Transport.TLS.CertFile,
+			c.cfg.Transport.TLS.KeyFile,
+			c.cfg.Transport.TLS.InnerTrustedCaFile,
+			sn,
+		)
+		if err != nil {
+			xl.Warnf("fail to build inner tls configuration, err: %v", err)
+			return nil, err
+		}
+	}
+
 	proxyType, addr, auth, err := libnet.ParseProxyURL(c.cfg.Transport.ProxyURL)
 	if err != nil {
 		xl.Errorf("fail to parse proxy url")
@@ -227,6 +245,10 @@ func (c *defaultConnectorImpl) realConnect() (net.Conn, error) {
 		dialOptions = append(dialOptions, libnet.WithTLSConfigAndPriority(100, tlsConfig))
 		// Make sure that if it is wss, the websocket hook is executed after the tls hook.
 		dialOptions = append(dialOptions, libnet.WithAfterHook(libnet.AfterHook{Hook: netpkg.DialHookWebsocket(protocol, tlsConfig.ServerName, c.cfg.Transport.WSURL), Priority: 110}))
+		// WithTLSConfig uses the highest priority, so this second TLS layer is
+		// established inside the WebSocket tunnel, after the outer TLS and the
+		// WebSocket upgrade.
+		dialOptions = append(dialOptions, libnet.WithTLSConfig(innerTLSConfig))
 	default:
 		dialOptions = append(dialOptions, libnet.WithAfterHook(libnet.AfterHook{
 			Hook: netpkg.DialHookCustomTLSHeadByte(tlsConfig != nil, lo.FromPtr(c.cfg.Transport.TLS.DisableCustomTLSFirstByte)),

@@ -8,6 +8,10 @@ auth.token = "your_strong_token"
 transport.protocol = "wss"
 transport.ws_url = "/change_it"
 
+# 在 wss 内再套一层 TLS：nginx/CDN 终结外层 TLS 后，它转发给 frps 的
+# 只有 TLS 记录，看不到 frp 握手和后续 payload。
+transport.tls.innerEnable = true
+
 [[proxies]]
 name = "proxy"
 type = "tcp"

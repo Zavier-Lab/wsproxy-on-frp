@@ -181,6 +181,20 @@ type TLSClientConfig struct {
 	// first custom byte when tls is enabled.
 	// Since v0.50.0, the default value has been changed to true, and the first custom byte is disabled by default.
 	DisableCustomTLSFirstByte *bool `json:"disableCustomTLSFirstByte,omitempty"`
+	// InnerEnable adds a second, independent TLS handshake inside the WebSocket
+	// tunnel when transport.protocol is "wss". The outer TLS still protects the
+	// connection to the wss endpoint; the inner layer protects everything frpc
+	// sends to frps after an intermediary (CDN, reverse proxy) terminates that
+	// outer TLS, hiding the frp handshake and payload from that network path.
+	InnerEnable bool `json:"innerEnable,omitempty"`
+	// InnerServerName is the certificate name frpc verifies for the inner TLS
+	// layer. It defaults to transport.serverAddr.
+	InnerServerName string `json:"innerServerName,omitempty"`
+	// InnerTrustedCaFile is the CA frpc uses to verify frps's certificate for
+	// the inner TLS layer. When empty, verification is skipped, matching frp's
+	// default TLS behavior. transport.tls.certFile and transport.tls.keyFile
+	// are presented as the client certificate when they are set.
+	InnerTrustedCaFile string `json:"innerTrustedCaFile,omitempty"`
 
 	TLSConfig
 }

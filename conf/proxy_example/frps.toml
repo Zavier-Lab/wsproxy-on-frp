@@ -10,7 +10,9 @@ auth.token = "same_as_frpc"
 transport.ws_url = "your_custom_url_same_as_frpc"
 
 # 学校已终止外层 TLS，转发过来的是 WebSocket。
-transport.tls.force = false
+# 要求 WebSocket 隧道内还有一层 TLS（即 frpc 的 transport.tls.innerEnable），
+# 未使用内层 TLS 的客户端会被直接拒绝。
+transport.tls.force = true
 
 #log.to = "./frps.log"
 #log.level = "info"

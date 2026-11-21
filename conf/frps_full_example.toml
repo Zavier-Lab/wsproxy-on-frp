@@ -45,6 +45,8 @@ transport.maxPoolCount = 5
 # transport.tcpKeepalive = 7200
 
 # transport.tls.force specifies whether to only accept TLS-encrypted connections. By default, the value is false.
+# For wss connections, the outer TLS is terminated before frps (CDN or reverse proxy), so set this to true to
+# require the inner TLS layer frpc enables with transport.tls.innerEnable and reject plaintext WebSocket clients.
 transport.tls.force = false
 
 # transport.tls.certFile = "server.crt"
